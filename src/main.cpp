@@ -41,10 +41,20 @@ int main() {
     NeuralNetwork::Network network;
     NeuralNetwork::init_network(&network, num_inputs, num_hidden, num_outputs, dataset);
 
-    printf("\n\nTraining Network\n\n");
+    NeuralNetwork::Network network_gpu = network;
+   if (NeuralNetwork::compare_network(&network,&network_gpu)){
+        std::cout<<"\nSame network parameters\n";
+   }
+   std::cout<<"\n\nTraining Network\n\n";
+
     //train
-    NeuralNetwork::train_network(&network, dataset, 20, 0.001);
-    printf("\n\nTesting Network\n\n");
-    NeuralNetwork::test_network(&network, dataset);
+    // NeuralNetwork::train_network(&network, dataset, 20, 0.001);
+
+    // std::cout<<"\n\nTesting Network\n\n";
+
+    // NeuralNetwork::test_network(&network, dataset);
+
+    std::cout<<"\n\nTraining Network GPU\n\n";
+    NeuralNetwork::train_network_gpu(&network, dataset, 20, 0.001);
     return 0;
 }

@@ -124,6 +124,8 @@ void NeuralNetwork::init_network(Network *net, int num_inputs, int num_hidden, i
     net->train_dataset_size = data->trainSize;
     net->test_dataset_size = data->testSize;
 
+    std::cout<<"\n\nSize of train dataset"<<net->train_dataset_size<<std::endl;
+    std::cout<<"\n\nSize of iut data"<<net->test_dataset_size<<std::endl;
     // Allocate memory for the input-to-hidden layer weights
     net->wih = new float*[num_inputs];
     for (int i = 0; i < num_inputs; i++) {
@@ -240,3 +242,7 @@ NeuralNetwork::ConfusionMatrix NeuralNetwork::calculateConfusionMatrix(int y_tru
 
     return cm;
 }
+
+ bool NeuralNetwork::compare_network(Network* network1, Network* network2){
+    return true;
+ }
