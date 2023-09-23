@@ -8,8 +8,6 @@
 
 #define MAX_LINE_LENGTH 3054
 #define NUM_SAMPLES 42000
-#define NUM_TRAIN_SET 29399
-#define NUM_TEST_SET 12601
 #define INPUT_DIMENSION 784
 #define TARGET_DIMENSION 10
 
@@ -17,7 +15,7 @@ namespace DataReader {
 
 void shuffle(float** X, int** Y, int num_samples) {
     std::srand(time(nullptr));
-    for (int i = num_samples - 1; i > 0; i--) {
+    for (int i = num_samples - 1; i >= 0; i--) {
         int j = std::rand() % (i + 1);
 
         // Swap X[i] and X[j]
@@ -40,21 +38,21 @@ void splitData(float percent, float** X, int** Y, Dataset* dataset) {
     dataset->testSize = testSize;
 
     // Allocate memory for train and test arrays
-    dataset->trainInputData = new float*[trainSize];
-    dataset->trainTargetData = new int*[trainSize];
-    dataset->testInputData = new float*[testSize];
-    dataset->testOutputData = new int*[testSize];
+    dataset->trainInputData = new float*[ dataset->trainSize];
+    dataset->trainTargetData = new int*[ dataset->trainSize];
+    dataset->testInputData = new float*[ dataset->testSize];
+    dataset->testOutputData = new int*[ dataset->testSize];
 
     // Populate train arrays
-    for (int i = 0; i < trainSize; i++) {
+    for (int i = 0; i <  dataset->trainSize; i++) {
         dataset->trainInputData[i] = X[i];
         dataset->trainTargetData[i] = Y[i];
     }
 
     // Populate test arrays
-    for (int i = 0; i < testSize; i++) {
-        dataset->testInputData[i] = X[i + trainSize];
-        dataset->testOutputData[i] = Y[i + trainSize];
+    for (int i = 0; i <  dataset->testSize; i++) {
+        dataset->testInputData[i] = X[i +  dataset->testSize];
+        dataset->testOutputData[i] = Y[i +  dataset->testSize];
     }
 }
 
@@ -108,6 +106,7 @@ Dataset* readDataFiles() {
 
     Dataset* dataset = new Dataset;
     dataset->datasetSize = sample_count;
+     std::cout<<"\n\nSample count: "<< dataset->datasetSize<<std::endl;
     shuffle(x_train, y_train, NUM_SAMPLES);
     splitData(0.8f, x_train, y_train, dataset);
 

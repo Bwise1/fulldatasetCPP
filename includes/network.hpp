@@ -41,7 +41,8 @@ namespace NeuralNetwork {
     void test_network_gpu(Network *net, DataReader::Dataset *data);
     void test();
 
-
+    //compare 2 network
+    bool compare_network(Network* network1, Network* network2);
 
 } // namespace NeuralNetwork
 

@@ -4,9 +4,12 @@
 #include "data_reader.hpp"
 #include <cuda_runtime.h>
 
-
 __device__ float relu_gpu(float x) {
     return (x > 0.0f) ? x : 0.0f;
+}
+
+__device__ float relu_derivative_gpu(float x) {
+    return (x > 0.0f) ? 1.0f : 0.0f;
 }
 
 __device__ void softmax_gpu(float *arr, int size) {
@@ -62,50 +65,186 @@ __device__ void softmax_gpu(float *arr, int size) {
     }
 }
 
+// __global__ void backpropagate_gpu(NeuralNetwork::Network* net, float* d_input, int* target, float* d_hidden_outputs, float* d_output_outputs, float* d_hidden_error, float* d_output_error, float learning_rate) {
+//     int hid = blockIdx.x * blockDim.x + threadIdx.x;
+//     int out = blockIdx.y * blockDim.y + threadIdx.y;
+
+//     if (out < net->num_outputs) {
+//         // Calculate loss gradient for the output layer
+//         float loss_gradient = d_output_outputs[out] - target[out];
+
+//         if (hid < net->num_hidden) {
+//             // Update output layer weights and biases
+//             atomicAdd(&net->who[hid][out], -learning_rate * loss_gradient * d_hidden_outputs[hid]);
+//         }
+
+//         __syncthreads();
+
+//         if (hid < net->num_hidden) {
+//             // Update output layer biases
+//             atomicAdd(&net->bho[out], -learning_rate * loss_gradient);
+//         }
+//     }
+
+//     __syncthreads();
+
+//     if (hid < net->num_hidden) {
+//         float hidden_gradient = 0.0f;
+//         for (int o = 0; o < net->num_outputs; o++) {
+//             hidden_gradient += (out < net->num_outputs) ? (d_output_error[o] * net->who[hid][o]) : 0.0f;
+//         }
+//         hidden_gradient *= relu_derivative_gpu(d_hidden_outputs[hid]);
+
+//         // Update hidden layer weights and biases
+//         for (int inp = 0; inp < net->num_inputs; inp++) {
+//             atomicAdd(&net->wih[inp][hid], -learning_rate * hidden_gradient * d_input[inp]);
+//         }
+
+//         __syncthreads();
+
+//         // Update hidden layer biases
+//         atomicAdd(&net->bih[hid], -learning_rate * hidden_gradient);
+//     }
+// }
+// __global__ void backpropagate_gpu(NeuralNetwork::Network* net, float *d_input, int *target, float *d_hidden_outputs, float *d_output_outputs, float learning_rate) {
+//     int hid = blockIdx.x * blockDim.x + threadIdx.x;
+//     int out = blockIdx.y * blockDim.y + threadIdx.y;
+
+//     if (out < net->num_outputs) {
+//         // Calculate loss gradient
+//         float loss_gradient = d_output_outputs[out] - target[out];
+
+//         // Update output layer weights and biases
+//         if (hid < net->num_hidden) {
+//             for (int inp = 0; inp < net->num_inputs; inp++) {
+//                 atomicAdd(&net->who[inp][out], -learning_rate * loss_gradient * d_hidden_outputs[hid]);
+//             }
+//         }
+
+//         __syncthreads();
+
+//         // Update output layer biases
+//         atomicAdd(&net->bho[out], -learning_rate * loss_gradient);
+//     }
+
+//     __syncthreads();
+
+//     if (hid < net->num_hidden) {
+//         // Calculate hidden layer gradients
+//         float hidden_gradient = 0.0f;
+//         for (int o = 0; o < net->num_outputs; o++) {
+//             hidden_gradient += (out < net->num_outputs) ? (loss_gradient * net->who[hid][out]) : 0.0;
+//         }
+//         hidden_gradient *= relu_derivative_gpu(d_hidden_outputs[hid]); // Use GPU ReLU derivative
+
+//         // Update hidden layer weights and biases
+//         for (int inp = 0; inp < net->num_inputs; inp++) {
+//             atomicAdd(&net->wih[inp][hid], -learning_rate * hidden_gradient * d_input[inp]);
+//         }
+
+//         __syncthreads();
+
+//         // Update hidden layer biases
+//         atomicAdd(&net->bih[hid], -learning_rate * hidden_gradient);
+//     }
+// }
+
+__global__ void backpropagate_gpu(NeuralNetwork::Network* net, float *d_input, int *target, float *d_hidden_outputs, float *d_output_outputs, float learning_rate) {
+    int hid = blockIdx.x * blockDim.x + threadIdx.x;
+    int out = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (out < net->num_outputs) {
+        // Calculate loss gradient
+        float loss_gradient = d_output_outputs[out] - target[out];
+
+        // Update output layer weights and biases
+        if (hid < net->num_hidden) {
+            for (int inp = 0; inp < net->num_inputs; inp++) {
+                atomicAdd(&net->who[inp][out], -learning_rate * loss_gradient * d_hidden_outputs[hid]);
+            }
+        }
+
+        __syncthreads();
+
+        // Update output layer biases
+        atomicAdd(&net->bho[out], -learning_rate * loss_gradient);
+    }
+
+    __syncthreads();
+
+    if (hid < net->num_hidden) {
+        // Initialize hidden gradient
+        float hidden_gradient = 0.0f;
+
+        for (int o = 0; o < net->num_outputs; o++) {
+            // Accumulate contributions from the output layer neurons
+            hidden_gradient += (d_output_outputs[o] - target[o]) * net->who[hid][o];
+        }
+
+        // Apply the ReLU derivative
+        hidden_gradient *= relu_derivative_gpu(d_hidden_outputs[hid]);
+
+        // Update hidden layer weights and biases
+        for (int inp = 0; inp < net->num_inputs; inp++) {
+            atomicAdd(&net->wih[inp][hid], -learning_rate * hidden_gradient * d_input[inp]);
+        }
+
+        // Update hidden layer biases
+        atomicAdd(&net->bih[hid], -learning_rate * hidden_gradient);
+    }
+}
+
+
 void NeuralNetwork::train_network_gpu(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate) {
     // Allocate GPU memory for the necessary variables
-    float *d_input, *d_hidden_outputs, *d_output_outputs;
+    float *d_input, *d_hidden_outputs, *d_output_outputs, *d_output_data;
     int *d_target;
 
     cudaMalloc((void**)&d_input, sizeof(float) * net->train_dataset_size * net->num_inputs);
-    cudaMalloc((void**)&d_hidden_outputs, sizeof(float) * net->train_dataset_size * net->num_hidden);
-    cudaMalloc((void**)&d_output_outputs, sizeof(float) * net->train_dataset_size * net->num_outputs);
-    cudaMalloc((void**)&d_target, sizeof(int) * net->train_dataset_size * net->num_outputs);
+    // cudaMalloc((void**)&d_hidden_outputs, sizeof(float) * net->train_dataset_size * net->num_hidden);
+    // cudaMalloc((void**)&d_output_outputs, sizeof(float) * net->train_dataset_size * net->num_outputs);
+    // cudaMalloc((void**)&d_target, sizeof(int) * net->train_dataset_size * net->num_outputs);
+    // cudaMalloc((void**)&d_output_data, sizeof(float) * net->train_dataset_size * net->num_outputs);
 
     // Define block size and calculate grid size based on the dataset size
     int blockSize = 256; // Adjust this based on your GPU's capabilities and workload
     int gridSize = (net->train_dataset_size + blockSize - 1) / blockSize;
 
-
+    // Transfer data from CPU to GPU
+    cudaMemcpy(d_input, data->trainInputData, sizeof(float) * net->train_dataset_size+1 * net->num_inputs, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_target, data->trainTargetData, sizeof(int) * net->train_dataset_size * net->num_outputs, cudaMemcpyHostToDevice);
+    cudaError_t cudaError = cudaGetLastError();
+    if (cudaError != cudaSuccess) {
+        printf("cudaMemcpy Error: %s\n", cudaGetErrorString(cudaError));
+    }
     // Iterate over the specified number of epochs
     for (int epoch = 0; epoch < num_epochs; epoch++) {
         int correct_predictions = 0;
-        // float *hidden_outputs;
-        // float *output_outputs;
-         // Transfer data from CPU to GPU for each epoch
-        cudaMemcpy(d_input, data->trainInputData, sizeof(float) * net->train_dataset_size * net->num_inputs, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_target, data->trainTargetData, sizeof(int) * net->train_dataset_size * net->num_outputs, cudaMemcpyHostToDevice);
 
-        // Launch CUDA kernels for each data sample
-        for (int i = 0; i < net->train_dataset_size; i++) {
-            // Retrieve the input and target data for the current sample
-            float *input = data->trainInputData[i];
-            int *target = data->trainTargetData[i];
+        // CUDA kernels for feedforward and backpropagation
+        feedforward_gpu<<<gridSize, blockSize>>>(net, d_input, d_hidden_outputs, d_output_outputs);
 
-            // CUDA kernels for feedforward and backpropagation
-            feedforward_gpu<<<gridSize, blockSize>>>(net, input, hidden_outputs, output_outputs);
+        // Synchronize the GPU to ensure all kernel executions are completed
+        cudaDeviceSynchronize();
+        backpropagate_gpu<<<gridSize, blockSize>>>(net, d_input, d_target, d_hidden_outputs, d_output_outputs, learning_rate);
 
-            // Synchronize the GPU to ensure all kernel executions are completed
-            cudaDeviceSynchronize();
-
-            // Calculate training accuracy
-            // Increment correct_predictions if predicted_class == true_class
-        }
 
         // Copy computed results back to CPU memory
+        cudaMemcpy(d_output_data, d_output_outputs, sizeof(float) * net->train_dataset_size * net->num_outputs, cudaMemcpyDeviceToHost);
+        printf("Epoch %f",d_output_data);
 
-        // Training accuracy calculation using CPU
-        // printf("Training Accuracy in Epoch %d: %.2%%n", epoch, accuracy);
+        // // Training accuracy calculation using CPU
+        // for (int i = 0; i < net->train_dataset_size; i++) {
+        //     float *output = &d_output_data[i * net->num_outputs];
+        //     int predicted_class = get_predicted_class(output, net->num_outputs);
+
+        //     int true_class = get_true_class(data->trainTargetData[i], net->num_outputs);
+        //     if (predicted_class == true_class) {
+        //         correct_predictions++;
+        //     }
+        // }
+        // double accuracy = ((double) correct_predictions / net->train_dataset_size) * 100.0;
+        // printf("Training Accuracy in Epoch %d: %.2f%%n", epoch, accuracy);
     }
 
     // Free GPU memory
