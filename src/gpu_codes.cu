@@ -30,15 +30,26 @@ __device__ void softmax_gpu(float *arr, int size) {
     }
 }
 
- __global__ void feedforward_gpu(NeuralNetwork::Network* net, float* d_input, float* d_hidden_outputs, float* d_output_outputs) {
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
+ __global__ void feedforward_gpu(NeuralNetwork::Network* net, float** d_input, float* d_hidden_outputs, float* d_output_outputs) {
     int hid = blockIdx.x * blockDim.x + threadIdx.x;
     int out = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (hid < net->num_hidden) {
         float sum = 0.0f;
         for (int inp = 0; inp < net->num_inputs; inp++) {
-            sum += d_input[inp] * net->wih[inp][hid];
+            sum += d_input[inp][hid] * net->wih[inp][hid];
         }
+
 
         // Add in Bias
         sum += net->bih[hid];
@@ -64,6 +75,42 @@ __device__ void softmax_gpu(float *arr, int size) {
         softmax_gpu(d_output_outputs, net->num_outputs);
     }
 }
+//  __global__ void feedforward_gpu(NeuralNetwork::Network* net, float** d_input, float* d_hidden_outputs, float* d_output_outputs) {
+//     int hid = blockIdx.x * blockDim.x + threadIdx.x;
+//     int out = blockIdx.y * blockDim.y + threadIdx.y;
+
+//     if (hid < net->num_hidden) {
+//         float sum = 0.0f;
+//         for (int inp = 0; inp < net->num_inputs; inp++) {
+//             sum += d_input[inp][hid] * net->wih[inp][hid];
+
+//         }
+//         //  printf("%f ",sum);
+
+//         // Add in Bias
+//         sum += net->bih[hid];
+//         d_hidden_outputs[hid] = relu_gpu(sum);
+//     }
+
+//     __syncthreads();
+
+//     if (out < net->num_outputs) {
+//         float sum = 0.0f;
+//         for (int h = 0; h < net->num_hidden; h++) {
+//             sum += d_hidden_outputs[h] * net->who[h][out];
+//         }
+
+//         // Add in Bias
+//         sum += net->bho[out];
+//         d_output_outputs[out] = sum;
+//     }
+
+//     __syncthreads();
+
+//     if (out < net->num_outputs) {
+//         softmax_gpu(d_output_outputs, net->num_outputs);
+//     }
+// }
 
 // __global__ void backpropagate_gpu(NeuralNetwork::Network* net, float* d_input, int* target, float* d_hidden_outputs, float* d_output_outputs, float* d_hidden_error, float* d_output_error, float learning_rate) {
 //     int hid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -200,39 +247,41 @@ void NeuralNetwork::train_network_gpu(Network *net, DataReader::Dataset *data, i
     float *d_input, *d_hidden_outputs, *d_output_outputs, *d_output_data;
     int *d_target;
 
-    cudaMalloc((void**)&d_input, sizeof(float) * net->train_dataset_size * net->num_inputs);
-    // cudaMalloc((void**)&d_hidden_outputs, sizeof(float) * net->train_dataset_size * net->num_hidden);
-    // cudaMalloc((void**)&d_output_outputs, sizeof(float) * net->train_dataset_size * net->num_outputs);
-    // cudaMalloc((void**)&d_target, sizeof(int) * net->train_dataset_size * net->num_outputs);
+    gpuErrchk(cudaMalloc((void**)&d_input, sizeof(float) * net->train_dataset_size * net->num_inputs));
+    gpuErrchk(cudaMalloc((void**)&d_hidden_outputs, sizeof(float) * net->train_dataset_size * net->num_hidden));
+    gpuErrchk(cudaMalloc((void**)&d_output_outputs, sizeof(float) * net->train_dataset_size * net->num_outputs));
+    gpuErrchk(cudaMalloc((void**)&d_target, sizeof(int) * net->train_dataset_size * net->num_outputs));
     // cudaMalloc((void**)&d_output_data, sizeof(float) * net->train_dataset_size * net->num_outputs);
 
     // Define block size and calculate grid size based on the dataset size
     int blockSize = 256; // Adjust this based on your GPU's capabilities and workload
     int gridSize = (net->train_dataset_size + blockSize - 1) / blockSize;
 
-    // Transfer data from CPU to GPU
-    cudaMemcpy(d_input, data->trainInputData, sizeof(float) * net->train_dataset_size+1 * net->num_inputs, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_target, data->trainTargetData, sizeof(int) * net->train_dataset_size * net->num_outputs, cudaMemcpyHostToDevice);
-    cudaError_t cudaError = cudaGetLastError();
-    if (cudaError != cudaSuccess) {
-        printf("cudaMemcpy Error: %s\n", cudaGetErrorString(cudaError));
-    }
+    float** trainInputData = data->trainInputData;
+    gpuErrchk(cudaMemcpy(d_input, trainInputData, sizeof(float) * net->train_dataset_size * net->num_inputs, cudaMemcpyDeviceToHost));
+
+
     // Iterate over the specified number of epochs
-    for (int epoch = 0; epoch < num_epochs; epoch++) {
+    for (int epoch = 0; epoch < 1; epoch++) {
+         printf("Epoch %d",epoch);
         int correct_predictions = 0;
 
         // CUDA kernels for feedforward and backpropagation
-        feedforward_gpu<<<gridSize, blockSize>>>(net, d_input, d_hidden_outputs, d_output_outputs);
-
+        feedforward_gpu<<<gridSize, blockSize>>>(net, trainInputData, d_hidden_outputs, d_output_outputs);
+        cudaError_t cudaError = cudaGetLastError();
+        if (cudaError != cudaSuccess) {
+            printf("CUDA Error: %s\n", cudaGetErrorString(cudaError));
+            // Handle or exit the program if there's an error
+        }
         // Synchronize the GPU to ensure all kernel executions are completed
         cudaDeviceSynchronize();
-        backpropagate_gpu<<<gridSize, blockSize>>>(net, d_input, d_target, d_hidden_outputs, d_output_outputs, learning_rate);
+        // backpropagate_gpu<<<gridSize, blockSize>>>(net, d_input, d_target, d_hidden_outputs, d_output_outputs, learning_rate);
 
 
         // Copy computed results back to CPU memory
-        cudaMemcpy(d_output_data, d_output_outputs, sizeof(float) * net->train_dataset_size * net->num_outputs, cudaMemcpyDeviceToHost);
-        printf("Epoch %f",d_output_data);
-
+        gpuErrchk(cudaMemcpy(d_output_data, d_output_outputs, sizeof(float) * net->train_dataset_size * net->num_outputs, cudaMemcpyDeviceToHost));
+        // free(d_hidden_outputs);
+        printf("%f ", d_output_data[0]);
         // // Training accuracy calculation using CPU
         // for (int i = 0; i < net->train_dataset_size; i++) {
         //     float *output = &d_output_data[i * net->num_outputs];

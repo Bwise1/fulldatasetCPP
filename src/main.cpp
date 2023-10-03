@@ -18,12 +18,12 @@ int main() {
 
     // Print a sample from the train input data
     std::cout << "Train Input Data:" << std::endl;
-    for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 5; j++) {
-            std::cout << trainInputData[i][j] << " ";
-        }
-        std::cout << std::endl;
-    }
+    // for (int i = 0; i < dataset->trainSize; i++) {
+    //     for (int j = 0; j < 784; j++) {
+    //         std::cout << trainInputData[i][j] << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
 
     // Print a sample from the train target data
     std::cout << "Train Target Data:" << std::endl;
@@ -38,9 +38,9 @@ int main() {
     int num_inputs = 784;
     int num_hidden = 100;
     int num_outputs = 10;
+
     NeuralNetwork::Network network;
     NeuralNetwork::init_network(&network, num_inputs, num_hidden, num_outputs, dataset);
-
     NeuralNetwork::Network network_gpu = network;
    if (NeuralNetwork::compare_network(&network,&network_gpu)){
         std::cout<<"\nSame network parameters\n";
