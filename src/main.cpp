@@ -69,7 +69,7 @@ int main()
     NeuralNetwork::train_network(&network, dataset, 20, 0.001f);
 
     // Clean up allocated memory
-    NeuralNetwork::free_network(&network);
+    // NeuralNetwork::free_network(&network);
     // NeuralNetwork::free_network(&network_gpu);
     delete[] wih;
     delete[] who;
