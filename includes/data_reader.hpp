@@ -15,7 +15,7 @@ namespace DataReader
         int testSize;
     };
 
-    Dataset *readDataFiles(bool useGPU = false);
+    Dataset *readDataFiles();
 
     void shuffle(float *X, int *Y, int num_samples, int input_dim, int target_dim);
     void splitData(float percent, float *X, int *Y, Dataset *dataset, int input_dim, int target_dim);
