@@ -45,7 +45,7 @@ int main()
 
     NeuralNetwork::Network network;
     NeuralNetwork::init_network(&network, num_inputs, num_hidden, num_outputs, dataset);
-    NeuralNetwork::DeviceNetwork d_network;
+    // NeuralNetwork::DeviceNetwork d_network;
     NeuralNetwork::Network network_gpu = network;
     if (NeuralNetwork::compare_network(&network, &network_gpu))
     {
