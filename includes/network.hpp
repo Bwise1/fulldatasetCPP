@@ -3,9 +3,11 @@
 
 #include "data_reader.hpp"
 
-namespace NeuralNetwork {
+namespace NeuralNetwork
+{
 
-    struct Network {
+    struct Network
+    {
         int num_inputs;
         int num_hidden;
         int num_outputs;
@@ -13,11 +15,24 @@ namespace NeuralNetwork {
         int test_dataset_size;
         float **wih; // input to hidden layer weights
         float **who; // hidden to output layer weights
-        float *bih; // bias for hidden layer
-        float *bho; // bias for output layer
+        float *bih;  // bias for hidden layer
+        float *bho;  // bias for output layer
     };
 
-    struct ConfusionMatrix {
+    struct DeviceNetwork
+    {
+        int num_inputs;
+        int num_hidden;
+        int num_outputs;
+        int train_dataset_size;
+        float *d_wih; // num_inputs * num_hidden
+        float *d_who; // num_hidden * num_outputs
+        float *d_bih; // num_hidden
+        float *d_bho; // num_outputs
+    };
+
+    struct ConfusionMatrix
+    {
         int truePositive;
         int falsePositive;
         int trueNegative;
@@ -36,13 +51,16 @@ namespace NeuralNetwork {
     void free_network(Network *net);
     ConfusionMatrix calculateConfusionMatrix(int y_true[], int y_pred[], int numInstances);
 
-    //gpu functions
+    // gpu functions
+    // void NeuralNetwork::init_network_gpu(Network *net, DeviceNetwork *d_net);
+    void init_network_gpu(Network *net, DeviceNetwork *d_net);
+    void free_network_gpu(DeviceNetwork *d_net);
     void train_network_gpu(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate);
     void test_network_gpu(Network *net, DataReader::Dataset *data);
     void test();
 
-    //compare 2 network
-    bool compare_network(Network* network1, Network* network2);
+    // compare 2 network
+    bool compare_network(Network *network1, Network *network2);
 
 } // namespace NeuralNetwork
 
