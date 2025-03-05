@@ -22,6 +22,68 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
+__device__ float relu_gpu(float x) {
+    return (x > 0.0f) ? x : 0.0f;
+}
+
+__device__ float relu_derivative_gpu(float x) {
+    return (x > 0.0f) ? 1.0f : 0.0f;
+}
+
+__device__ void softmax_gpu(float *arr, int size) {
+    float max_val = arr[0];
+    for (int i = 1; i < size; i++) {
+        if (arr[i] > max_val) {
+            max_val = arr[i];
+        }
+    }
+
+    float sum_exp = 0.0f;
+    for (int i = 0; i < size; i++) {
+        sum_exp += expf(arr[i] - max_val);
+    }
+
+    for (int i = 0; i < size; i++) {
+        arr[i] = expf(arr[i] - max_val) / sum_exp;
+    }
+}
+
+ __global__ void feedforward_gpu(NeuralNetwork::Network* net, float** d_input, float* d_hidden_outputs, float* d_output_outputs) {
+    int hid = blockIdx.x * blockDim.x + threadIdx.x;
+    int out = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (hid < net->num_hidden) {
+        float sum = 0.0f;
+        for (int inp = 0; inp < net->num_inputs; inp++) {
+            sum += d_input[inp][hid] * net->wih[inp][hid];
+        }
+
+
+        // Add in Bias
+        sum += net->bih[hid];
+        d_hidden_outputs[hid] = relu_gpu(sum);
+    }
+
+    __syncthreads();
+
+    if (out < net->num_outputs) {
+        float sum = 0.0f;
+        for (int h = 0; h < net->num_hidden; h++) {
+            sum += d_hidden_outputs[h] * net->who[h][out];
+        }
+
+        // Add in Bias
+        sum += net->bho[out];
+        d_output_outputs[out] = sum;
+    }
+
+    __syncthreads();
+
+    if (out < net->num_outputs) {
+        softmax_gpu(d_output_outputs, net->num_outputs);
+    }
+}
+
 void NeuralNetwork::init_network_gpu(Network *net, DeviceNetwork *d_net) {
     printf("Initializing GPU network...\n");
 
