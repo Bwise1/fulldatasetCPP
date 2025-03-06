@@ -261,6 +261,11 @@ void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
                                     int num_epochs, float learning_rate) {
     DeviceNetwork d_net;
     init_network_gpu(net, &d_net);
+    printf("First 10 weights from input to hidden layer:\n");
+    for (int i = 0; i < 10 && i < (net->num_inputs * net->num_hidden); i++) {
+        printf("%.6f ", net->wih[0][i]);
+    }
+    printf("\n");
 
     float *d_input, *d_hidden, *d_output;
     int *d_target;

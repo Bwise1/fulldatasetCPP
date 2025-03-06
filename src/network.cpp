@@ -194,6 +194,12 @@ void NeuralNetwork::init_network(Network *net, int num_inputs, int num_hidden, i
 
 void NeuralNetwork::train_network(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate)
 {
+    printf("First 10 weights from input to hidden layer:\n");
+    for (int i = 0; i < 10 && i < (net->num_inputs * net->num_hidden); i++)
+    {
+        printf("%.6f ", net->wih[0][i]);
+    }
+    printf("\n");
     // Iterate over the dataset for the specified number of epochs
     for (int epoch = 0; epoch < num_epochs; epoch++)
     {
