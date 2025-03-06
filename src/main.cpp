@@ -51,16 +51,16 @@ int main()
     {
         std::cout << "\nSame network parameters\n";
     }
-    std::cout << "\n\nTraining Network\n\n";
+    // std::cout << "\n\nTraining Network\n\n";
 
     // train
-    NeuralNetwork::train_network(&network, dataset, 5, 0.001);
+    NeuralNetwork::train_network(&network, dataset, 1, 0.001);
 
     // std::cout << "\n\nTesting Network\n\n";
 
     // NeuralNetwork::test_network(&network, dataset);
 
     std::cout << "\n\nTraining Network GPU\n\n";
-    NeuralNetwork::train_network_gpu(&network, dataset, 5, 0.001);
+    NeuralNetwork::train_network_gpu(&network_gpu, dataset, 1, 0.001);
     return 0;
 }
