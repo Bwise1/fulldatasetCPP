@@ -48,6 +48,9 @@ __device__ void softmax_gpu(float *arr, int size) {
     }
 }
 
+__global__ void softmax_kernel(float* arr, int size) {
+    softmax_gpu(arr, size);
+}
 // feedforward_gpu kernel
 __global__ void feedforward_gpu(
     const float* d_input,        // [num_inputs]
@@ -88,10 +91,10 @@ __global__ void feedforward_gpu(
 
     __syncthreads();
 
-    // Apply softmax
-    if (threadIdx.x == 0 && blockIdx.x == 0) {
-        softmax_gpu(d_output_outputs, num_outputs);
-    }
+    // // Apply softmax
+    // if (threadIdx.x == 0 && blockIdx.x == 0) {
+    //     softmax_gpu(d_output_outputs, num_outputs);
+    // }
 }
 
 // New kernels for backpropagation split into output and hidden layers
@@ -267,6 +270,8 @@ void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
     CHECK_CUDA_ERROR(cudaMalloc(&d_output, net->num_outputs * sizeof(float)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_target, net->num_outputs * sizeof(int)));
 
+
+
     const int blockSize = 256;
 
     for (int epoch = 0; epoch < num_epochs; epoch++) {
@@ -299,6 +304,10 @@ void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
                 net->num_hidden,
                 net->num_outputs
             );
+            CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+            // Apply softmax
+            softmax_kernel<<<1, 1>>>(d_output, net->num_outputs);
             CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
             // Backpropagation for output layer

@@ -53,10 +53,8 @@ int main()
     }
     std::cout << "\n\nTraining Network\n\n";
 
-    // NeuralNetwork::init_network_gpu(&network, &d_network);
-
     // train
-   // NeuralNetwork::train_network(&network, dataset, 5, 0.001);
+    NeuralNetwork::train_network(&network, dataset, 5, 0.001);
 
     // std::cout << "\n\nTesting Network\n\n";
 
