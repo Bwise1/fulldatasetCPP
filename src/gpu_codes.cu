@@ -90,12 +90,8 @@ __global__ void feedforward_gpu(
     }
 
     __syncthreads();
-
-    // // Apply softmax
-    // if (threadIdx.x == 0 && blockIdx.x == 0) {
-    //     softmax_gpu(d_output_outputs, num_outputs);
-    // }
 }
+
 
 // New kernels for backpropagation split into output and hidden layers
 __global__ void backprop_output_gpu(
