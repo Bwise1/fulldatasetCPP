@@ -25,10 +25,14 @@ namespace NeuralNetwork
         int num_hidden;
         int num_outputs;
         int train_dataset_size;
-        float *d_wih; // num_inputs * num_hidden
-        float *d_who; // num_hidden * num_outputs
-        float *d_bih; // num_hidden
-        float *d_bho; // num_outputs
+        float *d_wih;      // num_inputs * num_hidden
+        float *d_who;      // num_hidden * num_outputs
+        float *d_bih;      // num_hidden
+        float *d_bho;      // num_outputs
+        float *d_who_grad; // New gradient buffers
+        float *d_bho_grad;
+        float *d_wih_grad;
+        float *d_bih_grad;
     };
 
     struct ConfusionMatrix
