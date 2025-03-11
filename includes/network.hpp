@@ -25,6 +25,7 @@ namespace NeuralNetwork
         int num_hidden;
         int num_outputs;
         int train_dataset_size;
+        int test_dataset_size;
         float *d_wih;      // num_inputs * num_hidden
         float *d_who;      // num_hidden * num_outputs
         float *d_bih;      // num_hidden
@@ -56,12 +57,11 @@ namespace NeuralNetwork
     ConfusionMatrix calculateConfusionMatrix(int y_true[], int y_pred[], int numInstances);
 
     // gpu functions
-    // void NeuralNetwork::init_network_gpu(Network *net, DeviceNetwork *d_net);
     void init_network_gpu(Network *net, DeviceNetwork *d_net);
     void free_network_gpu(DeviceNetwork *d_net);
     void train_network_gpu(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate);
     void test_network_gpu(Network *net, DataReader::Dataset *data);
-    void test();
+    void copy_weights_device_to_host(Network *net, DeviceNetwork *d_net);
 
     // compare 2 network
     bool compare_network(Network *network1, Network *network2);
