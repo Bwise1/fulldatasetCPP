@@ -251,6 +251,36 @@ void NeuralNetwork::free_network_gpu(DeviceNetwork *d_net) {
     CHECK_CUDA_ERROR(cudaFree(d_net->d_bho));
 }
 
+void NeuralNetwork::copy_network(Network *dest_net, const Network *src_net) {
+    dest_net->num_inputs = src_net->num_inputs;
+    dest_net->num_hidden = src_net->num_hidden;
+    dest_net->num_outputs = src_net->num_outputs;
+    dest_net->train_dataset_size = src_net->train_dataset_size;
+    dest_net->test_dataset_size = src_net->test_dataset_size;
+
+    // Allocate and copy wih
+    dest_net->wih = new float *[src_net->num_inputs];
+    for (int i = 0; i < src_net->num_inputs; ++i) {
+        dest_net->wih[i] = new float[src_net->num_hidden];
+        memcpy(dest_net->wih[i], src_net->wih[i], src_net->num_hidden * sizeof(float));
+    }
+
+    // Allocate and copy who
+    dest_net->who = new float *[src_net->num_hidden];
+    for (int i = 0; i < src_net->num_hidden; ++i) {
+        dest_net->who[i] = new float[src_net->num_outputs];
+        memcpy(dest_net->who[i], src_net->who[i], src_net->num_outputs * sizeof(float));
+    }
+
+    // Allocate and copy bih
+    dest_net->bih = new float[src_net->num_hidden];
+    memcpy(dest_net->bih, src_net->bih, src_net->num_hidden * sizeof(float));
+
+    // Allocate and copy bho
+    dest_net->bho = new float[src_net->num_outputs];
+    memcpy(dest_net->bho, src_net->bho, src_net->num_outputs * sizeof(float));
+}
+
 void NeuralNetwork::copy_weights_device_to_host(Network *net, DeviceNetwork *d_net) {
     const int num_inputs = net->num_inputs;
     const int num_hidden = net->num_hidden;
@@ -303,6 +333,13 @@ void NeuralNetwork::copy_weights_device_to_host(Network *net, DeviceNetwork *d_n
 
 void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
                                     int num_epochs, float learning_rate) {
+
+    printf("First 10 weights from input to hidden layer:\n");
+    for (int i = 0; i < 10 && i < (net->num_inputs * net->num_hidden); i++)
+        {
+            printf("%.6f ", net->wih[0][i]);
+        }
+    printf("\n");
     // Create CUDA timing events
     cudaEvent_t start, stop;
     cudaEventCreate(&start);

@@ -62,6 +62,7 @@ namespace NeuralNetwork
     void train_network_gpu(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate);
     void test_network_gpu(Network *net, DataReader::Dataset *data);
     void copy_weights_device_to_host(Network *net, DeviceNetwork *d_net);
+    void copy_network(Network *dest_net, const Network *src_net);
 
     // compare 2 network
     bool compare_network(Network *network1, Network *network2);
