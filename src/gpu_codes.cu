@@ -157,8 +157,6 @@ __global__ void backprop_hidden_gpu(
     }
 }
 void NeuralNetwork::init_network_gpu(Network *net, DeviceNetwork *d_net) {
-    printf("Initializing GPU network...\n");
-
     // Validate input pointers
     if (!net || !d_net) {
         fprintf(stderr, "Error: Null pointer passed (net=%p, d_net=%p)\n", net, d_net);
@@ -191,8 +189,6 @@ void NeuralNetwork::init_network_gpu(Network *net, DeviceNetwork *d_net) {
     CHECK_CUDA_ERROR(cudaMalloc(&d_net->d_who, num_hidden * num_outputs * sizeof(float)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_net->d_bih, num_hidden * sizeof(float)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_net->d_bho, num_outputs * sizeof(float)));
-
-    printf("GPU memory allocated successfully.\n");
 
     // Copy input-to-hidden weights
     float *h_wih_flat = new float[num_inputs * num_hidden];
@@ -240,8 +236,6 @@ void NeuralNetwork::init_network_gpu(Network *net, DeviceNetwork *d_net) {
         num_outputs * sizeof(float),
         cudaMemcpyHostToDevice
     ));
-
-    printf("Network parameters successfully copied to GPU.\n");
 }
 
 void NeuralNetwork::free_network_gpu(DeviceNetwork *d_net) {
@@ -331,20 +325,15 @@ void NeuralNetwork::copy_weights_device_to_host(Network *net, DeviceNetwork *d_n
     ));
 }
 
-void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
+TrainingMetricsVector NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
                                     int num_epochs, float learning_rate) {
 
-    printf("First 10 weights from input to hidden layer:\n");
-    for (int i = 0; i < 10 && i < (net->num_inputs * net->num_hidden); i++)
-        {
-            printf("%.6f ", net->wih[0][i]);
-        }
-    printf("\n");
+    TrainingMetricsVector metrics;
+
     // Create CUDA timing events
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-    float total_kernel_time = 0.0f;
 
     DeviceNetwork d_net;
     init_network_gpu(net, &d_net);
@@ -363,17 +352,27 @@ void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
     for (int epoch = 0; epoch < num_epochs; epoch++) {
         int correct = 0;
         float epoch_kernel_time = 0.0f;
+        float epoch_data_copy_time = 0.0f;
+        float epoch_total_time = 0.0f;
 
         for (int i = 0; i < net->train_dataset_size; i++) {
-            // Copy data to device
+            cudaEventRecord(start);
+
+            // Data copy timing
+            cudaEventRecord(start);
             CHECK_CUDA_ERROR(cudaMemcpy(d_input, data->trainInputData[i],
                                       net->num_inputs * sizeof(float),
                                       cudaMemcpyHostToDevice));
             CHECK_CUDA_ERROR(cudaMemcpy(d_target, data->trainTargetData[i],
                                       net->num_outputs * sizeof(int),
                                       cudaMemcpyHostToDevice));
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float data_copy_ms = 0;
+            cudaEventElapsedTime(&data_copy_ms, start, stop);
+            epoch_data_copy_time += data_copy_ms;
 
-            // Start timing
+            // Kernel execution timing
             cudaEventRecord(start);
 
             // Feedforward
@@ -403,14 +402,11 @@ void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
                 net->num_inputs, net->num_hidden, net->num_outputs, learning_rate
             );
 
-            // Stop timing and synchronize
             cudaEventRecord(stop);
             cudaEventSynchronize(stop);
-
-            // Calculate elapsed time
-            float milliseconds = 0;
-            cudaEventElapsedTime(&milliseconds, start, stop);
-            epoch_kernel_time += milliseconds;
+            float kernel_ms = 0;
+            cudaEventElapsedTime(&kernel_ms, start, stop);
+            epoch_kernel_time += kernel_ms;
 
             // Accuracy check
             float* h_output = new float[net->num_outputs];
@@ -422,7 +418,7 @@ void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
                                       net->num_outputs * sizeof(int),
                                       cudaMemcpyDeviceToHost));
 
-             int pred_class = 0;
+            int pred_class = 0;
             float max_prob = h_output[0];
             for (int c = 1; c < net->num_outputs; c++) {
                 if (h_output[c] > max_prob) {
@@ -434,17 +430,27 @@ void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
 
             delete[] h_output;
             delete[] h_target;
+
+            // Total iteration time
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float iteration_time_ms = 0;
+            cudaEventElapsedTime(&iteration_time_ms, start, stop);
+            epoch_total_time += iteration_time_ms;
         }
 
-        total_kernel_time += epoch_kernel_time;
-        printf("Epoch %d - Accuracy: %.2f%% - Kernel Time: %.2fms\n",
-               epoch, (float)correct/net->train_dataset_size*100, epoch_kernel_time);
+        // Store metrics for this epoch
+        TrainingMetrics epoch_metrics;
+        epoch_metrics.epoch = epoch;
+        epoch_metrics.accuracy = static_cast<float>(correct) / net->train_dataset_size * 100.0f;
+        epoch_metrics.kernel_time = epoch_kernel_time;
+        epoch_metrics.data_copy_time = epoch_data_copy_time;
+        epoch_metrics.total_epoch_time = epoch_total_time;
+        metrics.push_back(epoch_metrics);
     }
 
-    // Copy trained weights back to host network
-    copy_weights_device_to_host(net, &d_net);
-
     // Cleanup
+    copy_weights_device_to_host(net, &d_net);
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     CHECK_CUDA_ERROR(cudaFree(d_input));
@@ -453,8 +459,7 @@ void NeuralNetwork::train_network_gpu(Network* net, DataReader::Dataset* data,
     CHECK_CUDA_ERROR(cudaFree(d_target));
     free_network_gpu(&d_net);
 
-    printf("\nTotal GPU Kernel Time: %.2fms (%.2fs)\n",
-           total_kernel_time, total_kernel_time/1000.0f);
+    return metrics;
 }
 
 //test network gpu

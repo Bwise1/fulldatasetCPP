@@ -57,14 +57,29 @@ int main()
     std::cout << "\n\nTraining Network\n\n";
 
     // train
-    NeuralNetwork::train_network(&network, dataset, 1, 0.001);
+
+    TrainingMetricsVector cpu_metrics = NeuralNetwork::train_network(&network, dataset, 1, 0.001);
+    for (const auto &metric : cpu_metrics)
+    {
+        std::cout << "Epoch " << metric.epoch
+                  << " - Acc: " << metric.accuracy << "%"
+                  << " - Time: " << metric.total_epoch_time << "ms\n";
+    }
 
     std::cout << "\n\nTesting Network\n\n";
-
     NeuralNetwork::test_network(&network, dataset);
 
     std::cout << "\n\nTraining Network GPU\n\n";
-    NeuralNetwork::train_network_gpu(&network_gpu, dataset, 1, 0.001);
+    TrainingMetricsVector metrics = NeuralNetwork::train_network_gpu(&network_gpu, dataset, 1, 0.001);
+    for (const auto &m : metrics)
+    {
+        std::cout << "Epoch " << m.epoch
+                  << " - Acc: " << m.accuracy << "%"
+                  << " - Kernel: " << m.kernel_time << "ms"
+                  << " - Data Copy: " << m.data_copy_time << "ms"
+                  << " - Total: " << m.total_epoch_time << "ms\n";
+    }
+
     std::cout << "\n\nTesting Network GPU\n\n";
     NeuralNetwork::test_network_gpu(&network_gpu, dataset);
     return 0;

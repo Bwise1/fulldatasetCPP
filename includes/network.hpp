@@ -2,6 +2,7 @@
 #define NETWORK_HPP
 
 #include "data_reader.hpp"
+#include "training_metrics.hpp"
 
 namespace NeuralNetwork
 {
@@ -51,7 +52,7 @@ namespace NeuralNetwork
     int get_true_class(int *targets, int num_targets);
 
     void init_network(Network *net, int num_inputs, int num_hidden, int num_outputs, DataReader::Dataset *data);
-    void train_network(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate);
+    TrainingMetricsVector train_network(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate);
     void test_network(Network *net, DataReader::Dataset *data);
     void free_network(Network *net);
     ConfusionMatrix calculateConfusionMatrix(int y_true[], int y_pred[], int numInstances);
@@ -59,7 +60,7 @@ namespace NeuralNetwork
     // gpu functions
     void init_network_gpu(Network *net, DeviceNetwork *d_net);
     void free_network_gpu(DeviceNetwork *d_net);
-    void train_network_gpu(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate);
+    TrainingMetricsVector train_network_gpu(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate);
     void test_network_gpu(Network *net, DataReader::Dataset *data);
     void copy_weights_device_to_host(Network *net, DeviceNetwork *d_net);
     void copy_network(Network *dest_net, const Network *src_net);

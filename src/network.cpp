@@ -5,6 +5,9 @@
 #include <cstring>
 #include "../includes/network.hpp"
 #include "../includes/utils.hpp"
+#include <chrono>
+
+using namespace std::chrono;
 
 /* Softmax function */
 void NeuralNetwork::softmax(float *arr, int size)
@@ -140,16 +143,16 @@ int NeuralNetwork::get_true_class(int *target, int num_outputs)
 void NeuralNetwork::init_network(Network *net, int num_inputs, int num_hidden, int num_outputs, DataReader::Dataset *data)
 {
     // Set the network architecture
-    std::cout << std::endl
-              << "Initializing network" << std::endl;
+    // std::cout << std::endl
+    //           << "Initializing network" << std::endl;
     net->num_inputs = num_inputs;
     net->num_hidden = num_hidden;
     net->num_outputs = num_outputs;
     net->train_dataset_size = data->trainSize;
     net->test_dataset_size = data->testSize;
 
-    std::cout << "\n\nSize of train dataset" << net->train_dataset_size << std::endl;
-    std::cout << "\n\nSize of iut data" << net->test_dataset_size << std::endl;
+    std::cout << "\nSize of train dataset" << net->train_dataset_size << std::endl;
+    std::cout << "\nSize of test data" << net->test_dataset_size << std::endl;
     // Allocate memory for the input-to-hidden layer weights
     net->wih = new float *[num_inputs];
     for (int i = 0; i < num_inputs; i++)
@@ -189,52 +192,54 @@ void NeuralNetwork::init_network(Network *net, int num_inputs, int num_hidden, i
         // Initialize biases with random values
         net->bho[i] = randWeight();
     }
-    std::cout << "finished Initializing network" << std::endl;
+    // std::cout << "finished Initializing network" << std::endl;
 }
 
-void NeuralNetwork::train_network(Network *net, DataReader::Dataset *data, int num_epochs, float learning_rate)
+TrainingMetricsVector NeuralNetwork::train_network(Network *net, DataReader::Dataset *data,
+                                                   int num_epochs, float learning_rate)
 {
-    printf("First 10 weights from input to hidden layer:\n");
-    for (int i = 0; i < 10 && i < (net->num_inputs * net->num_hidden); i++)
-    {
-        printf("%.6f ", net->wih[0][i]);
-    }
-    printf("\n");
-    // Iterate over the dataset for the specified number of epochs
+    TrainingMetricsVector metrics;
+
     for (int epoch = 0; epoch < num_epochs; epoch++)
     {
-        // Perform training for each data sample
-        std::cout << "\nEpoch " << epoch << std::endl;
-
         int correct_predictions = 0;
+        float epoch_time = 0.0f;
 
         for (int i = 0; i < net->train_dataset_size; i++)
         {
-            // Retrieve the input and target data for the current sample
+            auto iteration_start = high_resolution_clock::now();
+
             float *input = data->trainInputData[i];
             int *target = data->trainTargetData[i];
 
-            // Feedforward pass
             float hidden_outputs[net->num_hidden];
             float output_outputs[net->num_outputs];
-            feedforward(net, input, hidden_outputs, output_outputs);
 
-            // Backpropagate
+            feedforward(net, input, hidden_outputs, output_outputs);
             backpropagate(net, input, target, hidden_outputs, output_outputs, learning_rate);
 
-            // Calculate training accuracy
+            // Accuracy calculation
             int predicted_class = get_predicted_class(output_outputs, net->num_outputs);
             int true_class = get_true_class(target, net->num_outputs);
-
             if (predicted_class == true_class)
-            {
                 correct_predictions++;
-            }
+
+            // Timing
+            auto iteration_end = high_resolution_clock::now();
+            epoch_time += duration_cast<milliseconds>(iteration_end - iteration_start).count();
         }
 
-        float accuracy = ((float)correct_predictions / net->train_dataset_size) * 100.0;
-        std::cout << "Training Accuracy in Epoch " << epoch << ": " << accuracy << "%" << std::endl;
+        // Store epoch metrics
+        TrainingMetrics epoch_metrics;
+        epoch_metrics.epoch = epoch;
+        epoch_metrics.accuracy = static_cast<float>(correct_predictions) / net->train_dataset_size * 100.0f;
+        epoch_metrics.total_epoch_time = epoch_time;
+        epoch_metrics.kernel_time = 0.0f;    // Not applicable for CPU
+        epoch_metrics.data_copy_time = 0.0f; // Not applicable for CPU
+        metrics.push_back(epoch_metrics);
     }
+
+    return metrics;
 }
 
 void NeuralNetwork::test_network(Network *net, DataReader::Dataset *data)
