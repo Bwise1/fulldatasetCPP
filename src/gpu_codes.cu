@@ -200,12 +200,7 @@ void NeuralNetwork::init_network_gpu(Network *net, DeviceNetwork *d_net) {
         }
         memcpy(h_wih_flat + i * num_hidden, net->wih[i], num_hidden * sizeof(float));
     }
-    CHECK_CUDA_ERROR(cudaMemcpy(
-        d_net->d_wih,
-        h_wih_flat,
-        num_inputs * num_hidden * sizeof(float),
-        cudaMemcpyHostToDevice
-    ));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_net->d_wih, h_wih_flat, num_inputs * num_hidden * sizeof(float), cudaMemcpyHostToDevice));
     delete[] h_wih_flat;
 
     // Copy hidden-to-output weights
