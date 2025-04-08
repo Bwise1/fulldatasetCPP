@@ -6,8 +6,8 @@
 #include <vector>
 #include <algorithm>
 
-// Function to write CPU metrics to a CSV file for specific epochs
-void writeCPUMetricsToFile(const TrainingMetricsVector &metrics, const std::string &filename, const std::vector<int> &epoch_points)
+// Function to write CPU metrics to a CSV file
+void writeCPUMetricsToFile(const TrainingMetricsVector &metrics, const std::string &filename)
 {
     std::ofstream outputFile(filename);
     if (outputFile.is_open())
@@ -15,13 +15,9 @@ void writeCPUMetricsToFile(const TrainingMetricsVector &metrics, const std::stri
         outputFile << "Epoch,Accuracy(%),Total Time(ms)\n";
         for (const auto &metric : metrics)
         {
-            // Only write metrics for the specified epoch points
-            if (std::find(epoch_points.begin(), epoch_points.end(), metric.epoch) != epoch_points.end())
-            {
-                outputFile << metric.epoch << ","
-                           << std::fixed << std::setprecision(2) << metric.accuracy << ","
-                           << metric.total_epoch_time << "\n";
-            }
+            outputFile << metric.epoch << ","
+                       << std::fixed << std::setprecision(2) << metric.accuracy << ","
+                       << metric.total_epoch_time << "\n";
         }
         outputFile.close();
         std::cout << "CPU metrics written to " << filename << std::endl;
@@ -32,8 +28,8 @@ void writeCPUMetricsToFile(const TrainingMetricsVector &metrics, const std::stri
     }
 }
 
-// Function to write GPU metrics to a CSV file for specific epochs
-void writeGPUMetricsToFile(const TrainingMetricsVector &metrics, const std::string &filename, const std::vector<int> &epoch_points)
+// Function to write GPU metrics to a CSV file
+void writeGPUMetricsToFile(const TrainingMetricsVector &metrics, const std::string &filename)
 {
     std::ofstream outputFile(filename);
     if (outputFile.is_open())
@@ -41,15 +37,11 @@ void writeGPUMetricsToFile(const TrainingMetricsVector &metrics, const std::stri
         outputFile << "Epoch,Accuracy(%),Kernel Time(ms),Data Copy Time(ms),Total Time(ms)\n";
         for (const auto &metric : metrics)
         {
-            // Only write metrics for the specified epoch points
-            if (std::find(epoch_points.begin(), epoch_points.end(), metric.epoch) != epoch_points.end())
-            {
-                outputFile << metric.epoch << ","
-                           << std::fixed << std::setprecision(2) << metric.accuracy << ","
-                           << metric.kernel_time << ","
-                           << metric.data_copy_time << ","
-                           << metric.total_epoch_time << "\n";
-            }
+            outputFile << metric.epoch << ","
+                       << std::fixed << std::setprecision(2) << metric.accuracy << ","
+                       << metric.kernel_time << ","
+                       << metric.data_copy_time << ","
+                       << metric.total_epoch_time << "\n";
         }
         outputFile.close();
         std::cout << "GPU metrics written to " << filename << std::endl;
@@ -58,6 +50,73 @@ void writeGPUMetricsToFile(const TrainingMetricsVector &metrics, const std::stri
     {
         std::cerr << "Unable to open file: " << filename << std::endl;
     }
+}
+
+// Function to calculate and display total training time from metrics
+float calculateTotalTime(const TrainingMetricsVector &metrics)
+{
+    float total_time = 0.0f;
+    for (const auto &metric : metrics)
+    {
+        total_time += metric.total_epoch_time;
+    }
+    return total_time;
+}
+
+// Function to train network for a specific number of epochs and display results
+void trainForEpochs(int num_epochs, DataReader::Dataset *dataset, int num_inputs, int num_hidden, int num_outputs, float learning_rate)
+{
+    // Initialize new networks for this training session
+    NeuralNetwork::Network cpu_network;
+    NeuralNetwork::init_network(&cpu_network, num_inputs, num_hidden, num_outputs, dataset);
+
+    NeuralNetwork::Network gpu_network;
+    NeuralNetwork::copy_network(&gpu_network, &cpu_network);
+
+    // CPU Training
+    std::cout << "\n=== Training for " << num_epochs << " Epochs (CPU) ===\n";
+    TrainingMetricsVector cpu_metrics = NeuralNetwork::train_network(&cpu_network, dataset, num_epochs, learning_rate);
+
+    float cpu_total_time = calculateTotalTime(cpu_metrics);
+    std::cout << "Total Training Time (CPU) for " << num_epochs << " epochs: " << cpu_total_time << " ms ("
+              << std::fixed << std::setprecision(2) << cpu_total_time / 1000.0 << " seconds)\n";
+
+    for (const auto &metric : cpu_metrics)
+    {
+        std::cout << "Epoch " << metric.epoch
+                  << " - Acc: " << std::fixed << std::setprecision(2) << metric.accuracy << "%"
+                  << " - Time: " << metric.total_epoch_time << "ms\n";
+    }
+
+    // GPU Training
+    std::cout << "\n=== Training for " << num_epochs << " Epochs (GPU) ===\n";
+    TrainingMetricsVector gpu_metrics = NeuralNetwork::train_network_gpu(&gpu_network, dataset, num_epochs, learning_rate);
+
+    float gpu_total_time = calculateTotalTime(gpu_metrics);
+    std::cout << "Total Training Time (GPU) for " << num_epochs << " epochs: " << gpu_total_time << " ms ("
+              << std::fixed << std::setprecision(2) << gpu_total_time / 1000.0 << " seconds)\n";
+
+    for (const auto &m : gpu_metrics)
+    {
+        std::cout << "Epoch " << m.epoch
+                  << " - Acc: " << std::fixed << std::setprecision(2) << m.accuracy << "%"
+                  << " - Kernel: " << m.kernel_time << "ms"
+                  << " - Data Copy: " << m.data_copy_time << "ms"
+                  << " - Total: " << m.total_epoch_time << "ms\n";
+    }
+
+    // Write metrics to files
+    std::string cpu_filename = "cpu_metrics_" + std::to_string(num_epochs) + "_epochs.csv";
+    std::string gpu_filename = "gpu_metrics_" + std::to_string(num_epochs) + "_epochs.csv";
+    writeCPUMetricsToFile(cpu_metrics, cpu_filename);
+    writeGPUMetricsToFile(gpu_metrics, gpu_filename);
+
+    // Test networks after training
+    std::cout << "\n=== Testing Network after " << num_epochs << " Epochs (CPU) ===\n";
+    NeuralNetwork::test_network(&cpu_network, dataset);
+
+    std::cout << "\n=== Testing Network after " << num_epochs << " Epochs (GPU) ===\n";
+    NeuralNetwork::test_network_gpu(&gpu_network, dataset);
 }
 
 int main()
@@ -72,53 +131,20 @@ int main()
         return 1;
     }
 
-    // Initialize network
+    // Network parameters
     int num_inputs = 784;
     int num_hidden = 533;
     int num_outputs = 10;
     float learning_rate = 0.001f;
-    int max_epochs = 100; // Train up to the maximum number of epochs
 
     // Define the epoch points you want to analyze
     std::vector<int> epoch_points = {10, 20, 50, 100};
 
-    NeuralNetwork::Network network;
-    NeuralNetwork::init_network(&network, num_inputs, num_hidden, num_outputs, dataset);
-
-    NeuralNetwork::Network network_gpu;
-    NeuralNetwork::copy_network(&network_gpu, &network);
-
-    std::cout << "\n\nTraining Network (CPU)\n\n";
-    // Train CPU up to max_epochs
-    TrainingMetricsVector cpu_metrics = NeuralNetwork::train_network(&network, dataset, max_epochs, learning_rate);
-    for (const auto &metric : cpu_metrics)
+    // Train for each specified number of epochs
+    for (int epochs : epoch_points)
     {
-        std::cout << "Epoch " << metric.epoch
-                  << " - Acc: " << std::fixed << std::setprecision(2) << metric.accuracy << "%"
-                  << " - Time: " << metric.total_epoch_time << "ms\n";
+        trainForEpochs(epochs, dataset, num_inputs, num_hidden, num_outputs, learning_rate);
     }
-
-    std::cout << "\n\nTesting Network (CPU)\n\n";
-    NeuralNetwork::test_network(&network, dataset);
-
-    std::cout << "\n\nTraining Network (GPU)\n\n";
-    // Train GPU up to max_epochs
-    TrainingMetricsVector gpu_metrics = NeuralNetwork::train_network_gpu(&network_gpu, dataset, max_epochs, learning_rate);
-    for (const auto &m : gpu_metrics)
-    {
-        std::cout << "Epoch " << m.epoch
-                  << " - Acc: " << std::fixed << std::setprecision(2) << m.accuracy << "%"
-                  << " - Kernel: " << m.kernel_time << "ms"
-                  << " - Data Copy: " << m.data_copy_time << "ms"
-                  << " - Total: " << m.total_epoch_time << "ms\n";
-    }
-
-    std::cout << "\n\nTesting Network (GPU)\n\n";
-    NeuralNetwork::test_network_gpu(&network_gpu, dataset);
-
-    // Write metrics for specific epoch points to files
-    writeCPUMetricsToFile(cpu_metrics, "cpu_metrics.csv", epoch_points);
-    writeGPUMetricsToFile(gpu_metrics, "gpu_metrics.csv", epoch_points);
 
     return 0;
 }
