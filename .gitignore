@@ -43,3 +43,4 @@
 *.ps
 /results/data/*
 /results/processed/*
+results/venv/*
