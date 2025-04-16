@@ -12,7 +12,7 @@ void writeCPUMetricsToFile(const TrainingMetricsVector &metrics, const std::stri
     std::ofstream outputFile(filename);
     if (outputFile.is_open())
     {
-        outputFile << "Epoch,Accuracy(%),Total Time(ms)\n";
+        outputFile << "Epoch,Accuracy(%),Epoch_time(ms)\n";
         for (const auto &metric : metrics)
         {
             outputFile << metric.epoch << ","
@@ -34,7 +34,7 @@ void writeGPUMetricsToFile(const TrainingMetricsVector &metrics, const std::stri
     std::ofstream outputFile(filename);
     if (outputFile.is_open())
     {
-        outputFile << "Epoch,Accuracy(%),Kernel Time(ms),Data Copy Time(ms),Total Time(ms)\n";
+        outputFile << "Epoch,Accuracy(%),Kernel Time(ms),Data Copy Time(ms),Epoch_time(ms)\n";
         for (const auto &metric : metrics)
         {
             outputFile << metric.epoch << ","
@@ -106,8 +106,8 @@ void trainForEpochs(int num_epochs, DataReader::Dataset *dataset, int num_inputs
     }
 
     // Write metrics to files
-    std::string cpu_filename = "cpu_metrics_" + std::to_string(num_epochs) + "_epochs.csv";
-    std::string gpu_filename = "gpu_metrics_" + std::to_string(num_epochs) + "_epochs.csv";
+    std::string cpu_filename = "results/data/cpu_metrics_" + std::to_string(num_epochs) + "_epochs.csv";
+    std::string gpu_filename = "results/data/gpu_metrics_" + std::to_string(num_epochs) + "_epochs.csv";
     writeCPUMetricsToFile(cpu_metrics, cpu_filename);
     writeGPUMetricsToFile(gpu_metrics, gpu_filename);
 
@@ -133,12 +133,12 @@ int main()
 
     // Network parameters
     int num_inputs = 784;
-    int num_hidden = 533;
+    int num_hidden = 256;
     int num_outputs = 10;
     float learning_rate = 0.001f;
 
     // Define the epoch points you want to analyze
-    std::vector<int> epoch_points = {10, 20, 50, 100};
+    std::vector<int> epoch_points = {10, 20, 30, 50, 100};
 
     // Train for each specified number of epochs
     for (int epochs : epoch_points)

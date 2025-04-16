@@ -41,3 +41,5 @@
 *.csv
 *.pdf
 *.ps
+/results/data/*
+/results/processed/*
