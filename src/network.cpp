@@ -204,10 +204,10 @@ TrainingMetricsVector NeuralNetwork::train_network(Network *net, DataReader::Dat
     {
         int correct_predictions = 0;
         float epoch_time = 0.0f;
+        auto iteration_start = high_resolution_clock::now();
 
         for (int i = 0; i < net->train_dataset_size; i++)
         {
-            auto iteration_start = high_resolution_clock::now();
 
             float *input = data->trainInputData[i];
             int *target = data->trainTargetData[i];
@@ -225,9 +225,9 @@ TrainingMetricsVector NeuralNetwork::train_network(Network *net, DataReader::Dat
                 correct_predictions++;
 
             // Timing
-            auto iteration_end = high_resolution_clock::now();
-            epoch_time += duration_cast<milliseconds>(iteration_end - iteration_start).count();
         }
+        auto iteration_end = high_resolution_clock::now();
+        epoch_time += duration_cast<milliseconds>(iteration_end - iteration_start).count();
 
         // Store epoch metrics
         TrainingMetrics epoch_metrics;

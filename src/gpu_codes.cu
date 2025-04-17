@@ -3,6 +3,7 @@
 #include "../includes/network.hpp"
 #include "data_reader.hpp"
 #include <cuda_runtime.h>
+#include <algorithm>
 
 #define CHECK_CUDA_ERROR(call) do { \
     cudaError_t err = call; \
@@ -88,8 +89,6 @@ __global__ void feedforward_gpu(
         sum += d_bho[out];
         d_output_outputs[out] = sum;
     }
-
-    __syncthreads();
 }
 
 
@@ -380,7 +379,7 @@ TrainingMetricsVector NeuralNetwork::train_network_gpu(Network* net, DataReader:
             );
 
             // Softmax
-            softmax_kernel<<<1, 1>>>(d_output, net->num_outputs);
+            softmax_kernel<<<1, net->num_outputs>>>(d_output, net->num_outputs);
 
             // Backpropagation
             int gridSizeOutput = (net->num_outputs + blockSize - 1) / blockSize;
